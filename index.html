@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unstable Diffraction</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #08080a;
+  --surface: #111115;
+  --surface2: #19191f;
+  --surface3: #222229;
+  --border: #2a2a33;
+  --border-hi: #3a3a45;
+  --text: #e2e2e8;
+  --text-dim: #6e6e7a;
+  --text-mid: #9a9aa8;
+  --accent: #c8ff2e;
+  --accent-dim: rgba(200,255,46,0.15);
+  --red: #ff4466;
+  --green: #44ff88;
+  --blue: #4488ff;
+  --purple: #aa66ff;
+  --orange: #ff8844;
+  --cyan: #44ddff;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Space Grotesk', sans-serif;
+}
+
+body { background: var(--bg); color: var(--text); font-family: var(--sans); height: 100vh; overflow: hidden; }
+
+.app { display: grid; grid-template-columns: 320px 1fr; grid-template-rows: 48px 1fr; height: 100vh; }
+
+.topbar {
+  grid-column: 1 / -1;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  z-index: 10;
+}
+
+.topbar h1 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  background: linear-gradient(135deg, var(--red), var(--accent), var(--blue));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-right: 8px;
+}
+
+.topbar-sep { width: 1px; height: 24px; background: var(--border); }
+
+.topbar-btn {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.topbar-btn:hover { border-color: var(--accent); color: var(--text); }
+.topbar-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+.topbar-btn.accent { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+.topbar-btn.accent:hover { background: #d4ff55; }
+
+.topbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sidebar-header span {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.add-btn {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  cursor: pointer;
+}
+.add-btn:hover { background: var(--accent); color: var(--bg); }
+
+.stack-list { flex: 1; overflow-y: auto; padding: 8px; }
+.stack-list::-webkit-scrollbar { width: 4px; }
+.stack-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.stack-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; color: var(--text-dim); font-size: 13px; gap: 8px; padding: 20px; text-align: center;
+}
+
+.stack-item {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  margin-bottom: 6px; transition: border-color 0.15s, opacity 0.15s; user-select: none;
+}
+.stack-item:hover { border-color: var(--border-hi); }
+.stack-item.disabled { opacity: 0.4; }
+.stack-item.dragging { opacity: 0.3; }
+.stack-item.drag-over { border-color: var(--accent); border-style: dashed; }
+
+.stack-item-header {
+  display: flex; align-items: center; padding: 8px 10px; gap: 8px; cursor: default; font-size: 12px;
+}
+
+.drag-handle {
+  color: var(--text-dim); font-size: 10px; flex-shrink: 0; width: 14px;
+  letter-spacing: 1px; cursor: grab;
+}
+.drag-handle:active { cursor: grabbing; }
+
+.effect-badge { font-family: var(--mono); font-size: 9px; padding: 2px 6px; border-radius: 3px; font-weight: 500; flex-shrink: 0; }
+.badge-reaction { background: rgba(200,255,46,0.15); color: var(--accent); }
+.badge-glitch { background: rgba(255,68,102,0.15); color: var(--red); }
+.badge-optical { background: rgba(68,136,255,0.15); color: var(--blue); }
+.badge-bio { background: rgba(68,255,136,0.15); color: var(--green); }
+.badge-color { background: rgba(170,102,255,0.15); color: var(--purple); }
+
+.stack-item-name { flex: 1; font-weight: 500; }
+.stack-item-actions { display: flex; gap: 4px; align-items: center; }
+
+.icon-btn {
+  width: 22px; height: 22px; border: none; background: transparent; color: var(--text-dim);
+  cursor: pointer; border-radius: 4px; font-size: 12px; display: flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover { background: var(--surface3); color: var(--text); }
+.icon-btn.toggle-on { color: var(--accent); }
+
+.stack-item-params { display: none; padding: 6px 10px 10px 32px; border-top: 1px solid var(--border); }
+.stack-item.expanded .stack-item-params { display: block; }
+
+.param-row { margin-bottom: 8px; }
+.param-row label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-bottom: 3px; }
+.param-row label .pval { font-family: var(--mono); font-size: 10px; color: var(--text-mid); }
+
+.param-row input[type="range"] {
+  width: 100%; -webkit-appearance: none; appearance: none; height: 6px;
+  background: var(--surface3); border-radius: 3px; outline: none; margin: 8px 0 4px 0; cursor: pointer;
+}
+.param-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text-mid); cursor: pointer; border: 2px solid var(--surface2);
+  box-shadow: 0 0 3px rgba(0,0,0,0.4); transition: background 0.15s, transform 0.1s;
+}
+.param-row input[type="range"]:hover::-webkit-slider-thumb { background: var(--orange); }
+.param-row input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); }
+.param-row input[type="range"]::-moz-range-thumb {
+  width: 18px; height: 18px; border-radius: 50%; background: var(--text-mid);
+  cursor: pointer; border: 2px solid var(--surface2); box-shadow: 0 0 3px rgba(0,0,0,0.4);
+}
+.param-row input[type="range"]:hover::-moz-range-thumb { background: var(--orange); }
+.param-row input[type="range"]::-moz-range-track { height: 6px; background: var(--surface3); border-radius: 3px; border: none; }
+
+.param-row select {
+  width: 100%; padding: 4px 8px; background: var(--surface3); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text); font-family: var(--sans); font-size: 11px; outline: none;
+}
+
+.canvas-area { background: var(--bg); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+
+.dropzone { display: flex; flex-direction: column; align-items: center; gap: 14px; cursor: pointer; }
+.dropzone-ring {
+  width: 90px; height: 90px; border: 2px dashed var(--border); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 28px; color: var(--text-dim); transition: all 0.2s;
+}
+.dropzone:hover .dropzone-ring { border-color: var(--accent); color: var(--accent); }
+.dropzone p { color: var(--text-dim); font-size: 13px; }
+.dropzone strong { color: var(--accent); }
+
+#mainCanvas { display: none; max-width: 100%; max-height: 100%; }
+
+.render-overlay {
+  display: none; position: absolute; inset: 0; background: rgba(8,8,10,0.85); z-index: 5;
+  align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+}
+.render-overlay.visible { display: flex; }
+.render-text { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: 1px; }
+.progress-bar { width: 200px; height: 3px; background: var(--surface3); border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.1s; }
+
+.add-dropdown {
+  display: none; position: absolute; top: 100%; right: 0; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px; min-width: 220px;
+  z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.add-dropdown.open { display: block; }
+.add-dropdown-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 5px;
+  cursor: pointer; font-size: 12px; color: var(--text); border: none; background: none;
+  width: 100%; text-align: left; font-family: var(--sans);
+}
+.add-dropdown-item:hover { background: var(--surface3); }
+.add-dropdown-item .cat { font-family: var(--mono); font-size: 9px; margin-left: auto; color: var(--text-dim); }
+.add-dropdown-sep { height: 1px; background: var(--border); margin: 4px 8px; }
+.sidebar-header { position: relative; }
+
+.canvas-status {
+  position: absolute; bottom: 0; left: 0; right: 0; padding: 8px 14px;
+  background: rgba(17,17,21,0.9); border-top: 1px solid var(--border);
+  font-family: var(--mono); font-size: 10px; color: var(--text-dim);
+  display: none; justify-content: space-between; backdrop-filter: blur(8px);
+}
+.canvas-status.visible { display: flex; }
+.canvas-status .hi { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>Unstable Diffraction</h1>
+    <div class="topbar-sep"></div>
+    <button class="topbar-btn" id="btnUndo" disabled title="Undo">↶ Undo</button>
+    <button class="topbar-btn" id="btnRedo" disabled title="Redo">↷ Redo</button>
+    <div class="topbar-sep"></div>
+    <button class="topbar-btn" id="btnRender">⟳ Render</button>
+    <div class="topbar-right">
+      <button class="topbar-btn" id="btnImport">Import</button>
+      <button class="topbar-btn" id="btnExport" disabled>↓ Export PNG</button>
+    </div>
+  </div>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <span>Effect Stack</span>
+      <button class="add-btn" id="btnAdd">+ Add</button>
+      <div class="add-dropdown" id="addDropdown"></div>
+    </div>
+    <div class="stack-list" id="stackList">
+      <div class="stack-empty" id="stackEmpty">
+        <span style="font-size:24px; opacity:0.3">◇</span>
+        Load an image, then<br>add effects to the stack
+      </div>
+    </div>
+  </div>
+  <div class="canvas-area" id="canvasArea">
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-ring">+</div>
+      <p>Drop image or <strong>click to import</strong></p>
+    </div>
+    <canvas id="mainCanvas"></canvas>
+    <div class="render-overlay" id="renderOverlay">
+      <div class="render-text">RENDERING…</div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+    <div class="canvas-status" id="canvasStatus">
+      <span><span class="hi" id="statDim">—</span></span>
+      <span>Stack: <span class="hi" id="statStack">0</span> effects</span>
+    </div>
+  </div>
+  <input type="file" id="fileInput" accept="image/*" style="display:none">
+</div>
+
+<script>
+const EFFECTS={turing:{name:'Turing Patterns',category:'reaction',badge:'badge-reaction',params:{iterations:{label:'Iterations',type:'range',min:1,max:150,step:1,default:30},activator:{label:'Activator Radius',type:'range',min:0.5,max:8,step:0.25,default:1,showIf:{mode:['linked','luma']}},inhibitor:{label:'Inhibitor Radius',type:'range',min:1,max:40,step:0.5,default:5,showIf:{mode:['linked','luma']}},strength:{label:'Strength',type:'range',min:0.5,max:40,step:0.5,default:8,showIf:{mode:['linked','luma']}},mode:{label:'Channel Mode',type:'select',options:['linked','luma','rgb_split'],default:'linked'},activatorR:{label:'🔴 Activator R',type:'range',min:0.5,max:8,step:0.25,default:1,showIf:{mode:'rgb_split'}},activatorG:{label:'🟢 Activator G',type:'range',min:0.5,max:8,step:0.25,default:1,showIf:{mode:'rgb_split'}},activatorB:{label:'🔵 Activator B',type:'range',min:0.5,max:8,step:0.25,default:1,showIf:{mode:'rgb_split'}},inhibitorR:{label:'🔴 Inhibitor R',type:'range',min:1,max:40,step:0.5,default:5,showIf:{mode:'rgb_split'}},inhibitorG:{label:'🟢 Inhibitor G',type:'range',min:1,max:40,step:0.5,default:5,showIf:{mode:'rgb_split'}},inhibitorB:{label:'🔵 Inhibitor B',type:'range',min:1,max:40,step:0.5,default:5,showIf:{mode:'rgb_split'}},strengthR:{label:'🔴 Strength R',type:'range',min:0.5,max:40,step:0.5,default:8,showIf:{mode:'rgb_split'}},strengthG:{label:'🟢 Strength G',type:'range',min:0.5,max:40,step:0.5,default:8,showIf:{mode:'rgb_split'}},strengthB:{label:'🔵 Strength B',type:'range',min:0.5,max:40,step:0.5,default:8,showIf:{mode:'rgb_split'}}},apply:applyTuring},pixelsort:{name:'Pixel Sort',category:'glitch',badge:'badge-glitch',params:{direction:{label:'Direction',type:'select',options:['horizontal','vertical'],default:'horizontal'},threshLow:{label:'Threshold Low',type:'range',min:0,max:255,step:1,default:50},threshHigh:{label:'Threshold High',type:'range',min:0,max:255,step:1,default:200},sortBy:{label:'Sort By',type:'select',options:['luminance','hue','red','green','blue'],default:'luminance'},reverse:{label:'Reverse',type:'select',options:['no','yes'],default:'no'}},apply:applyPixelSort},channelshift:{name:'Channel Shift',category:'glitch',badge:'badge-glitch',params:{rX:{label:'Red X',type:'range',min:-80,max:80,step:1,default:8},rY:{label:'Red Y',type:'range',min:-80,max:80,step:1,default:0},gX:{label:'Green X',type:'range',min:-80,max:80,step:1,default:0},gY:{label:'Green Y',type:'range',min:-80,max:80,step:1,default:0},bX:{label:'Blue X',type:'range',min:-80,max:80,step:1,default:-8},bY:{label:'Blue Y',type:'range',min:-80,max:80,step:1,default:0}},apply:applyChannelShift},chromatic:{name:'Chromatic Aberration',category:'optical',badge:'badge-optical',params:{amount:{label:'Amount',type:'range',min:0,max:40,step:0.5,default:8},mode:{label:'Mode',type:'select',options:['radial','horizontal','vertical'],default:'radial'}},apply:applyChromaticAberration},posterize:{name:'Posterize',category:'color',badge:'badge-color',params:{levels:{label:'Levels',type:'range',min:2,max:32,step:1,default:6}},apply:applyPosterize},feedback:{name:'Feedback Loop',category:'optical',badge:'badge-optical',params:{iterations:{label:'Iterations',type:'range',min:1,max:30,step:1,default:5},scale:{label:'Zoom',type:'range',min:1.005,max:1.15,step:0.005,default:1.03},rotation:{label:'Rotation (°)',type:'range',min:-15,max:15,step:0.5,default:2},opacity:{label:'Mix',type:'range',min:0.1,max:0.95,step:0.05,default:0.7}},apply:applyFeedback},halftone:{name:'Halftone',category:'optical',badge:'badge-optical',params:{dotSize:{label:'Dot Size',type:'range',min:2,max:20,step:1,default:6},shape:{label:'Shape',type:'select',options:['circle','square','diamond'],default:'circle'},colorMode:{label:'Color',type:'select',options:['bw','rgb','cmy'],default:'bw'}},apply:applyHalftone},invert:{name:'Invert',category:'color',badge:'badge-color',params:{channels:{label:'Channels',type:'select',options:['all','red','green','blue'],default:'all'}},apply:applyInvert}};
+
+let state={originalImage:null,stack:[],undoStack:[],redoStack:[],nextId:1};
+const offA=document.createElement('canvas'),ctxA=offA.getContext('2d',{willReadFrequently:true});
+const offB=document.createElement('canvas'),ctxB=offB.getContext('2d',{willReadFrequently:true});
+const offC=document.createElement('canvas'),ctxC=offC.getContext('2d',{willReadFrequently:true});
+
+function blurImageData(imgData,radius,w,h){offA.width=w;offA.height=h;offB.width=w;offB.height=h;ctxA.putImageData(imgData,0,0);ctxB.filter=`blur(${Math.max(0.1,radius)}px)`;ctxB.drawImage(offA,0,0);ctxB.filter='none';return ctxB.getImageData(0,0,w,h)}
+
+function applyTuring(imgData,params,w,h,progress){
+  const{iterations,activator,inhibitor,strength,mode}=params;
+  let current=new ImageData(new Uint8ClampedArray(imgData.data),w,h);
+  const act=mode==='rgb_split'?[params.activatorR||activator,params.activatorG||activator,params.activatorB||activator]:[activator,activator,activator];
+  const inh=mode==='rgb_split'?[params.inhibitorR||inhibitor,params.inhibitorG||inhibitor,params.inhibitorB||inhibitor]:[inhibitor,inhibitor,inhibitor];
+  const str=mode==='rgb_split'?[params.strengthR||strength,params.strengthG||strength,params.strengthB||strength]:[strength,strength,strength];
+  for(let iter=0;iter<iterations;iter++){
+    if(progress)progress(iter/iterations);
+    if(mode==='luma'){
+      const small=blurImageData(current,activator,w,h),large=blurImageData(current,inhibitor,w,h);
+      const cd=current.data,sd=small.data,ld=large.data;
+      for(let i=0;i<cd.length;i+=4){const lo=0.299*cd[i]+0.587*cd[i+1]+0.114*cd[i+2];const ls=0.299*sd[i]+0.587*sd[i+1]+0.114*sd[i+2];const ll=0.299*ld[i]+0.587*ld[i+1]+0.114*ld[i+2];const diff=(ls-ll)*strength;const nl=Math.max(0,Math.min(255,lo+diff));if(lo>0.01){const r=nl/lo;cd[i]=Math.max(0,Math.min(255,cd[i]*r));cd[i+1]=Math.max(0,Math.min(255,cd[i+1]*r));cd[i+2]=Math.max(0,Math.min(255,cd[i+2]*r))}else{cd[i]=cd[i+1]=cd[i+2]=nl}}
+    }else if(mode==='rgb_split'){
+      const cd=current.data;
+      for(let c=0;c<3;c++){const small=blurImageData(current,act[c],w,h),large=blurImageData(current,inh[c],w,h);const sd=small.data,ld=large.data;for(let i=0;i<cd.length;i+=4){cd[i+c]=Math.max(0,Math.min(255,cd[i+c]+(sd[i+c]-ld[i+c])*str[c]))}}
+    }else{
+      const small=blurImageData(current,activator,w,h),large=blurImageData(current,inhibitor,w,h);
+      const cd=current.data,sd=small.data,ld=large.data;
+      for(let i=0;i<cd.length;i+=4){for(let c=0;c<3;c++){cd[i+c]=Math.max(0,Math.min(255,cd[i+c]+(sd[i+c]-ld[i+c])*strength))}}
+    }
+    const cd=current.data;for(let c=0;c<3;c++){let mn=255,mx=0;for(let i=c;i<cd.length;i+=4){if(cd[i]<mn)mn=cd[i];if(cd[i]>mx)mx=cd[i]}if(mx-mn<1)continue;const rng=mx-mn;for(let i=c;i<cd.length;i+=4)cd[i]=((cd[i]-mn)/rng)*255}
+  }
+  return current;
+}
+
+function applyPixelSort(imgData,params,w,h){
+  const{direction,threshLow,threshHigh,sortBy,reverse}=params;const out=new ImageData(new Uint8ClampedArray(imgData.data),w,h);const d=out.data;const rev=reverse==='yes';
+  function getVal(i){switch(sortBy){case'luminance':return 0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];case'hue':{const r=d[i]/255,g=d[i+1]/255,b=d[i+2]/255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),delta=mx-mn;if(delta<0.001)return 0;let h;if(mx===r)h=((g-b)/delta)%6;else if(mx===g)h=(b-r)/delta+2;else h=(r-g)/delta+4;return((h*60)+360)%360}case'red':return d[i];case'green':return d[i+1];case'blue':return d[i+2];default:return 0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]}}
+  const isH=direction==='horizontal';const outer=isH?h:w;const inner=isH?w:h;
+  for(let o=0;o<outer;o++){let spanStart=-1;for(let n=0;n<=inner;n++){let idx;if(n<inner){idx=isH?(o*w+n)*4:(n*w+o)*4}const lum=n<inner?0.299*d[idx]+0.587*d[idx+1]+0.114*d[idx+2]:-1;const inRange=lum>=threshLow&&lum<=threshHigh;if(inRange&&spanStart===-1){spanStart=n}else if((!inRange||n===inner)&&spanStart!==-1){const pixels=[];for(let s=spanStart;s<n;s++){const si=isH?(o*w+s)*4:(s*w+o)*4;pixels.push({r:d[si],g:d[si+1],b:d[si+2],a:d[si+3],v:getVal(si)})}pixels.sort((a,b)=>rev?b.v-a.v:a.v-b.v);for(let s=0;s<pixels.length;s++){const si=isH?(o*w+(spanStart+s))*4:((spanStart+s)*w+o)*4;d[si]=pixels[s].r;d[si+1]=pixels[s].g;d[si+2]=pixels[s].b;d[si+3]=pixels[s].a}spanStart=inRange?n:-1}}}
+  return out;
+}
+
+function applyChannelShift(imgData,params,w,h){
+  const out=new ImageData(w,h);const sd=imgData.data,od=out.data;
+  const offsets=[{x:params.rX,y:params.rY},{x:params.gX,y:params.gY},{x:params.bX,y:params.bY}];
+  for(let y=0;y<h;y++){for(let x=0;x<w;x++){const di=(y*w+x)*4;od[di+3]=255;for(let c=0;c<3;c++){let sx=(x-offsets[c].x+w)%w;let sy=(y-offsets[c].y+h)%h;const si=(sy*w+sx)*4;od[di+c]=sd[si+c]}}}
+  return out;
+}
+
+function applyChromaticAberration(imgData,params,w,h){
+  const{amount,mode}=params;const out=new ImageData(w,h);const sd=imgData.data,od=out.data;const cx=w/2,cy=h/2;const maxDist=Math.sqrt(cx*cx+cy*cy);
+  for(let y=0;y<h;y++){for(let x=0;x<w;x++){const di=(y*w+x)*4;od[di+3]=255;for(let c=0;c<3;c++){const shift=(c-1)*amount;let sx,sy;if(mode==='radial'){const dx=x-cx,dy=y-cy;const dist=Math.sqrt(dx*dx+dy*dy);const factor=(dist/maxDist)*shift;sx=Math.round(x+(dx/(dist||1))*factor);sy=Math.round(y+(dy/(dist||1))*factor)}else if(mode==='horizontal'){sx=Math.round(x+shift);sy=y}else{sx=x;sy=Math.round(y+shift)}sx=Math.max(0,Math.min(w-1,sx));sy=Math.max(0,Math.min(h-1,sy));od[di+c]=sd[(sy*w+sx)*4+c]}}}
+  return out;
+}
+
+function applyPosterize(imgData,params,w,h){const{levels}=params;const out=new ImageData(new Uint8ClampedArray(imgData.data),w,h);const d=out.data;const step=255/(levels-1);for(let i=0;i<d.length;i+=4){for(let c=0;c<3;c++){d[i+c]=Math.round(Math.round(d[i+c]/step)*step)}}return out}
+
+function applyFeedback(imgData,params,w,h,progress){
+  const{iterations,scale,rotation,opacity}=params;offA.width=w;offA.height=h;offB.width=w;offB.height=h;ctxA.putImageData(imgData,0,0);ctxB.putImageData(imgData,0,0);
+  for(let i=0;i<iterations;i++){if(progress)progress(i/iterations);ctxB.save();ctxB.globalAlpha=opacity;ctxB.translate(w/2,h/2);ctxB.rotate(rotation*Math.PI/180);ctxB.scale(scale,scale);ctxB.translate(-w/2,-h/2);ctxB.drawImage(offB,0,0);ctxB.restore()}
+  return ctxB.getImageData(0,0,w,h);
+}
+
+function applyHalftone(imgData,params,w,h){
+  const{dotSize,shape,colorMode}=params;offA.width=w;offA.height=h;ctxA.fillStyle=colorMode==='bw'?'#fff':'#000';ctxA.fillRect(0,0,w,h);const sd=imgData.data;
+  const layers=colorMode==='bw'?[[0,1,2,'#000',0]]:colorMode==='rgb'?[[0,0,0,'#f00',15],[1,1,1,'#0f0',0],[2,2,2,'#00f',30]]:[[0,0,0,'#0ff',15],[1,1,1,'#f0f',75],[2,2,2,'#ff0',0]];
+  ctxA.globalCompositeOperation=colorMode==='bw'?'source-over':'screen';if(colorMode==='cmy')ctxA.globalCompositeOperation='multiply';
+  for(const[ci,,,color,angle]of layers){const rad=angle*Math.PI/180;const cos=Math.cos(rad),sin=Math.sin(rad);for(let gy=-dotSize;gy<h+dotSize*2;gy+=dotSize){for(let gx=-dotSize;gx<w+dotSize*2;gx+=dotSize){const rx=Math.round(cos*gx-sin*gy+w/2-cos*w/2+sin*h/2);const ry=Math.round(sin*gx+cos*gy+h/2-sin*w/2-cos*h/2);if(rx<0||rx>=w||ry<0||ry>=h)continue;const si=(ry*w+rx)*4;let val;if(colorMode==='bw'){val=(0.299*sd[si]+0.587*sd[si+1]+0.114*sd[si+2])/255}else{val=sd[si+ci]/255}const r=(colorMode==='bw'?(1-val):val)*dotSize*0.55;if(r<0.3)continue;ctxA.fillStyle=color;ctxA.beginPath();if(shape==='circle'){ctxA.arc(rx,ry,r,0,Math.PI*2)}else if(shape==='square'){ctxA.rect(rx-r,ry-r,r*2,r*2)}else{ctxA.moveTo(rx,ry-r);ctxA.lineTo(rx+r,ry);ctxA.lineTo(rx,ry+r);ctxA.lineTo(rx-r,ry)}ctxA.fill()}}}
+  ctxA.globalCompositeOperation='source-over';return ctxA.getImageData(0,0,w,h);
+}
+
+function applyInvert(imgData,params,w,h){const out=new ImageData(new Uint8ClampedArray(imgData.data),w,h);const d=out.data;const ch=params.channels;for(let i=0;i<d.length;i+=4){if(ch==='all'||ch==='red')d[i]=255-d[i];if(ch==='all'||ch==='green')d[i+1]=255-d[i+1];if(ch==='all'||ch==='blue')d[i+2]=255-d[i+2]}return out}
+
+const $=id=>document.getElementById(id);const canvas=$('mainCanvas');const ctx=canvas.getContext('2d',{willReadFrequently:true});
+
+function buildDropdown(){const dd=$('addDropdown');let lastCat='';for(const[key,ef]of Object.entries(EFFECTS)){if(ef.category!==lastCat&&lastCat){dd.insertAdjacentHTML('beforeend','<div class="add-dropdown-sep"></div>')}lastCat=ef.category;const btn=document.createElement('button');btn.className='add-dropdown-item';btn.innerHTML=`${ef.name} <span class="cat">${ef.category}</span>`;btn.addEventListener('click',()=>{addEffect(key);dd.classList.remove('open')});dd.appendChild(btn)}}
+buildDropdown();
+
+$('btnAdd').addEventListener('click',e=>{e.stopPropagation();$('addDropdown').classList.toggle('open')});
+document.addEventListener('click',()=>$('addDropdown').classList.remove('open'));
+$('dropzone').addEventListener('click',()=>$('fileInput').click());
+$('btnImport').addEventListener('click',()=>$('fileInput').click());
+const canvasArea=$('canvasArea');
+canvasArea.addEventListener('dragover',e=>e.preventDefault());
+canvasArea.addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer.files[0])loadImage(e.dataTransfer.files[0])});
+$('fileInput').addEventListener('change',e=>{if(e.target.files[0])loadImage(e.target.files[0])});
+
+function loadImage(file){const img=new Image();img.onload=()=>{let w=img.width,h=img.height;const maxDim=1024;if(Math.max(w,h)>maxDim){const s=maxDim/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s)}canvas.width=w;canvas.height=h;ctx.drawImage(img,0,0,w,h);state.originalImage=ctx.getImageData(0,0,w,h);$('dropzone').style.display='none';canvas.style.display='block';$('canvasStatus').classList.add('visible');$('statDim').textContent=`${w}×${h}`;$('btnExport').disabled=false;URL.revokeObjectURL(img.src)};img.src=URL.createObjectURL(file)}
+
+function saveUndo(){state.undoStack.push(JSON.stringify(state.stack));if(state.undoStack.length>50)state.undoStack.shift();state.redoStack=[];updateUndoButtons()}
+function updateUndoButtons(){$('btnUndo').disabled=state.undoStack.length===0;$('btnRedo').disabled=state.redoStack.length===0}
+
+$('btnUndo').addEventListener('click',()=>{if(!state.undoStack.length)return;state.redoStack.push(JSON.stringify(state.stack));state.stack=JSON.parse(state.undoStack.pop());renderUI();renderStack();updateUndoButtons()});
+$('btnRedo').addEventListener('click',()=>{if(!state.redoStack.length)return;state.undoStack.push(JSON.stringify(state.stack));state.stack=JSON.parse(state.redoStack.pop());renderUI();renderStack();updateUndoButtons()});
+
+function addEffect(type){if(!state.originalImage)return;saveUndo();const ef=EFFECTS[type];const params={};for(const[k,p]of Object.entries(ef.params))params[k]=p.default;state.stack.push({id:state.nextId++,type,params,enabled:true,expanded:true});renderUI();renderStack()}
+function removeEffect(id){saveUndo();state.stack=state.stack.filter(s=>s.id!==id);renderUI();renderStack()}
+function toggleEffect(id){saveUndo();const item=state.stack.find(s=>s.id===id);if(item)item.enabled=!item.enabled;renderUI();renderStack()}
+function toggleExpand(id){const item=state.stack.find(s=>s.id===id);if(item)item.expanded=!item.expanded;renderUI()}
+function updateParam(id,key,value){const item=state.stack.find(s=>s.id===id);if(item)item.params[key]=isNaN(Number(value))?value:Number(value)}
+function commitParam(){saveUndo();renderStack()}
+
+function renderUI(){
+  const list=$('stackList');
+  if(state.stack.length===0){list.innerHTML=`<div class="stack-empty" id="stackEmpty"><span style="font-size:24px; opacity:0.3">◇</span>Load an image, then<br>add effects to the stack</div>`;$('statStack').textContent='0';return}
+  list.innerHTML='';
+  state.stack.forEach((item,idx)=>{
+    const ef=EFFECTS[item.type];const el=document.createElement('div');
+    el.className=`stack-item${item.enabled?'':' disabled'}${item.expanded?' expanded':''}`;el.dataset.id=item.id;el.draggable=false;
+    let paramsHTML='';
+    for(const[k,p]of Object.entries(ef.params)){
+      const val=item.params[k];
+      const hidden=p.showIf?Object.entries(p.showIf).some(([dk,dv])=>Array.isArray(dv)?!dv.includes(item.params[dk]):item.params[dk]!==dv):false;
+      if(p.type==='range'){paramsHTML+=`<div class="param-row" data-param="${k}" ${hidden?'style="display:none"':''}><label>${p.label} <span class="pval" id="pv-${item.id}-${k}">${val}</span></label><input type="range" min="${p.min}" max="${p.max}" step="${p.step}" value="${val}" data-id="${item.id}" data-key="${k}"></div>`}
+      else if(p.type==='select'){const opts=p.options.map(o=>`<option value="${o}"${o===val?' selected':''}>${o}</option>`).join('');paramsHTML+=`<div class="param-row" data-param="${k}" ${hidden?'style="display:none"':''}><label>${p.label}</label><select data-id="${item.id}" data-key="${k}">${opts}</select></div>`}
+    }
+    el.innerHTML=`<div class="stack-item-header"><span class="drag-handle">⠿</span><span class="effect-badge ${ef.badge}">${ef.category}</span><span class="stack-item-name">${ef.name}</span><div class="stack-item-actions"><button class="icon-btn toggle-btn ${item.enabled?'toggle-on':''}" data-id="${item.id}" title="Toggle">◉</button><button class="icon-btn expand-btn" data-id="${item.id}" title="Expand">${item.expanded?'▾':'▸'}</button><button class="icon-btn del-btn" data-id="${item.id}" title="Remove">✕</button></div></div><div class="stack-item-params">${paramsHTML}</div>`;
+    el.querySelector('.toggle-btn').addEventListener('click',e=>{e.stopPropagation();toggleEffect(item.id)});
+    el.querySelector('.expand-btn').addEventListener('click',e=>{e.stopPropagation();toggleExpand(item.id)});
+    el.querySelector('.del-btn').addEventListener('click',e=>{e.stopPropagation();removeEffect(item.id)});
+    el.querySelectorAll('input[type="range"]').forEach(inp=>{inp.addEventListener('input',()=>{updateParam(Number(inp.dataset.id),inp.dataset.key,inp.value);const pv=document.getElementById(`pv-${inp.dataset.id}-${inp.dataset.key}`);if(pv)pv.textContent=inp.value});inp.addEventListener('change',commitParam)});
+    el.querySelectorAll('select').forEach(sel=>{sel.addEventListener('change',()=>{updateParam(Number(sel.dataset.id),sel.dataset.key,sel.value);const stackItem=state.stack.find(s=>s.id===Number(sel.dataset.id));if(stackItem){const effDef=EFFECTS[stackItem.type];for(const[pk,pp]of Object.entries(effDef.params)){if(pp.showIf){const row=el.querySelector(`[data-param="${pk}"]`);if(row){const visible=Object.entries(pp.showIf).every(([dk,dv])=>Array.isArray(dv)?dv.includes(stackItem.params[dk]):stackItem.params[dk]===dv);row.style.display=visible?'':'none'}}}}commitParam()})});
+    const handle=el.querySelector('.drag-handle');handle.addEventListener('mousedown',()=>{el.draggable=true});handle.addEventListener('touchstart',()=>{el.draggable=true},{passive:true});
+    el.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',item.id);el.classList.add('dragging')});
+    el.addEventListener('dragend',()=>{el.classList.remove('dragging');el.draggable=false});
+    el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drag-over')});
+    el.addEventListener('dragleave',()=>el.classList.remove('drag-over'));
+    el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('drag-over');const dragId=Number(e.dataTransfer.getData('text/plain'));if(dragId===item.id)return;saveUndo();const fromIdx=state.stack.findIndex(s=>s.id===dragId);const toIdx=state.stack.findIndex(s=>s.id===item.id);const[moved]=state.stack.splice(fromIdx,1);state.stack.splice(toIdx,0,moved);renderUI();renderStack()});
+    list.appendChild(el);
+  });
+  $('statStack').textContent=state.stack.filter(s=>s.enabled).length;
+}
+
+let rendering=false;let renderQueued=false;
+async function renderStack(){
+  if(!state.originalImage)return;if(rendering){renderQueued=true;return}
+  rendering=true;const overlay=$('renderOverlay');const fill=$('progressFill');
+  try{
+    const w=state.originalImage.width,h=state.originalImage.height;const enabled=state.stack.filter(s=>s.enabled);
+    if(enabled.length>0){overlay.classList.add('visible');fill.style.width='0%'}
+    await new Promise(r=>setTimeout(r,30));
+    let current=new ImageData(new Uint8ClampedArray(state.originalImage.data),w,h);
+    for(let i=0;i<enabled.length;i++){const item=enabled[i];const ef=EFFECTS[item.type];const stepProgress=(p)=>{fill.style.width=`${((i+p)/enabled.length)*100}%`};current=ef.apply(current,item.params,w,h,stepProgress);fill.style.width=`${((i+1)/enabled.length)*100}%`;await new Promise(r=>setTimeout(r,10))}
+    ctx.putImageData(current,0,0);
+  }catch(err){console.error('Render error:',err)}finally{overlay.classList.remove('visible');rendering=false;if(renderQueued){renderQueued=false;requestAnimationFrame(()=>renderStack())}}
+}
+
+$('btnRender').addEventListener('click',renderStack);
+$('btnExport').addEventListener('click',()=>{const link=document.createElement('a');link.download=`unstable_diffraction_${Date.now()}.png`;link.href=canvas.toDataURL('image/png');link.click()});
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='z'){e.preventDefault();if(e.shiftKey)$('btnRedo').click();else $('btnUndo').click()}});
+</script>
+</body>
+</html>
